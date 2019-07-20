@@ -9,7 +9,25 @@ int test_func(int a, int b)
 TEST(sample_test_case, test_0)
 {
     int c = test_func(3, 4);
-    ASSERT_EQ(c, 7);
+    ASSERT_EQ(7, c);
+}
+
+TEST(sample_test_case, test_1)
+{
+    int c = test_func(3, 4);
+    ASSERT_TRUE(c == 7);
+}
+
+TEST(sample_test_case2, test_0)
+{
+    int c = test_func(3, 4);
+    ASSERT_FALSE(c == 7);
+}
+
+TEST(sample_test_case2, test_1)
+{
+    int c = test_func(3, 4);
+    ASSERT_EQ(5, c);
 }
 
 class StdOutStream : public ktest::OutputStream

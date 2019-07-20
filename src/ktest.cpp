@@ -42,19 +42,22 @@ namespace ktest {
 
     static jmp_buf s_jmp_buf;
 
-    template <class T, typename R>
-    R handle_exception_in_method(T *obj, R (T::*method)())
+    template <class T>
+    bool handle_exception_in_method(T *obj, void (T::*method)())
     {
         int code = ::setjmp(s_jmp_buf);
         if(code == 0) {
-            return (obj->*method)();
+            (obj->*method)();
+            return true;
         } else {
-            return static_cast<R>(0);
+            return false;
         }
     }
 
+    [[noreturn]] void raise_exception(int code);
+
     void raise_exception(int code) {
-        longjmp(s_jmp_buf, code);
+        ::longjmp(s_jmp_buf, code);
     }
 
     OutputStream::OutputStream()
@@ -136,10 +139,10 @@ namespace ktest {
     bool Test::run()
     {
         set_up();
-        handle_exception_in_method(this, &Test::test_body);
+        bool r = handle_exception_in_method(this, &Test::test_body);
         tear_down();
 
-        return true; // @TODO
+        return r; // @TODO
     }
 
     TestInfo::TestInfo(const char *test_case_name, const char *test_name,
@@ -227,10 +230,11 @@ namespace ktest {
 
                 if(status) {
                     m_cur_test_case_successful_count++;
-                    *m_output_stream << "[       OK ] " << test_case_name << "." << test_name << " (0 ms)\n";
+                    m_successful_test_count++;
                 } else {
                     m_cur_test_case_failed_count++;
                 }
+                *m_output_stream << (status ? "[       OK ] " : "[  FAILED  ] ") << test_case_name << "." << test_name << " (0 ms)\n";
             }
             *m_output_stream << "[----------] " << test_count << " test from " << test_case_name << " (0 ms total)\n";
 
@@ -239,7 +243,7 @@ namespace ktest {
 
         *m_output_stream << "[==========] " << total_test_count << " test from " << test_cases_count << " test case ran. (0 ms total)\n";
 
-        *m_output_stream << "[  PASSED  ] " << get_successful_test_case_count() << " test.\n";
+        *m_output_stream << "[  PASSED  ] " << m_successful_test_count << " test.\n";
 
         return false;
     }
@@ -265,6 +269,19 @@ namespace ktest {
         get_unit_test()->add_test_info(test_info);
 
         return test_info;
+    }
+
+
+    void assertion_impl(const CodeLocation &code_location,
+                        const ConstZString &expr,
+                        const ConstZString &expected,
+                        const ConstZString &actual)
+    {
+        auto &s = *get_unit_test()->m_output_stream;
+        s << code_location.file << "(" << code_location.line << "): error: " << expr << "\n";
+        s << "  Actual:" << actual << "\n";
+        s << "Expected:" << expected << "\n";
+        raise_exception(1);
     }
 
     void fatal_error()

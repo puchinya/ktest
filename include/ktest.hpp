@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <string.h>
 #include <stdint.h>
+#include <stdio.h>
 
 #define KTEST_TEST_CLASS_NAME_(test_suite_name, test_name)  test_suite_name##_##test_name##_Test
 
@@ -27,8 +28,12 @@
 
 #define RUN_ALL_TESTS() (ktest::get_unit_test()->run())
 #define TEST(test_case_name, test_name)    KTEST_TEST(test_case_name, test_name)
-#define ASSERT_EQ(expected, actual)
-#define ASSERT_NE(val1, val2)
+#define ASSERT_TRUE(actual)  ((actual) ? (void)0 : \
+    ::ktest::assert_true(::ktest::CodeLocation(__FILE__, __LINE__), #actual, actual), 0)
+#define ASSERT_FALSE(actual)  (!(actual) ? (void)0 : \
+    ::ktest::assert_false(::ktest::CodeLocation(__FILE__, __LINE__), #actual, actual), 0)
+#define ASSERT_EQ(expected, actual)  ((expected) == (actual) ? (void)0 : \
+    ::ktest::assert_equal(::ktest::CodeLocation(__FILE__, __LINE__), #actual, expected, actual), 0)
 
 namespace ktest {
 
@@ -361,6 +366,7 @@ namespace ktest {
         : m_successful_test_case_count(0),
           m_failed_test_case_count(0),
           m_total_test_case_count(0),
+          m_successful_test_count(0),
           m_output_stream(nullptr)
         {
 
@@ -395,6 +401,7 @@ namespace ktest {
         int m_successful_test_case_count;
         int m_failed_test_case_count;
         int m_total_test_case_count;
+        int m_successful_test_count;
         int m_cur_test_case_successful_count;
         int m_cur_test_case_failed_count;
         bool m_cur_test_sucessful;
@@ -416,6 +423,48 @@ namespace ktest {
                                 TestFactoryBase *test_factory);
 
     [[noreturn]] void fatal_error();
+
+
+    [[noreturn]] void assertion_impl(const CodeLocation &code_location,
+                                     const ConstZString &expr,
+                                     const ConstZString &expected,
+                                     const ConstZString &actual);
+
+    [[noreturn]] static void assert_true(const CodeLocation &code_location,
+                                                          const ConstZString &expr,
+                                                          bool actual)
+    {
+        assertion_impl(code_location, expr, "true", actual ? "true" : "false");
+    }
+
+    [[noreturn]] static void assert_false(const CodeLocation &code_location,
+                                  const ConstZString &expr,
+                                  bool actual)
+    {
+        assertion_impl(code_location, expr, "false", actual ? "true" : "false");
+    }
+
+    static void to_string(int from, char *to, uint32_t to_size)
+    {
+        ::sprintf(to, "%d", from);
+    }
+    static void to_string(unsigned int from, char *to, uint32_t to_size)
+    {
+        ::sprintf(to, "%d", from);
+    }
+
+    template <typename T> [[noreturn]] static void assert_equal(const CodeLocation &code_location,
+                                        const ConstZString &expr,
+                                        const T &expected,
+                                        const T &actual)
+    {
+        char expected_str[32];
+        char actual_str[32];
+        to_string(expected, expected_str, 32);
+        to_string(actual, actual_str, 32);
+        assertion_impl(code_location, expr, expected_str, actual_str);
+    }
+
 }
 
 #endif
