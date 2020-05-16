@@ -3,9 +3,8 @@
 //
 
 #include <ktest.hpp>
-#include <new>
-#include <setjmp.h>
-#include <stdlib.h>
+#include <csetjmp>
+#include <cstdlib>
 
 namespace ktest {
 
@@ -136,17 +135,15 @@ namespace ktest {
 
     }
 
-    bool Test::run()
+    void Test::run()
     {
         set_up();
-        bool r = handle_exception_in_method(this, &Test::test_body);
+        handle_exception_in_method(this, &Test::test_body);
         tear_down();
-
-        return r; // @TODO
     }
 
     TestInfo::TestInfo(const char *test_case_name, const char *test_name,
-             CodeLocation location, TestFactoryBase *test_factory)
+             const CodeLocation &location, TestFactoryBase *test_factory)
             : m_test_case_name(test_case_name),
               m_name(test_name), m_location(location),
               m_test_factory(test_factory)
@@ -193,6 +190,11 @@ namespace ktest {
 
     bool UnitTest::run()
     {
+        if(m_test_case_init_error) {
+            *m_output_stream << "Test initialize error!!\n";
+            return false;
+        }
+
         auto test_cases_count = m_test_cases.get_count();
         auto total_test_count = 0;
 
@@ -218,15 +220,20 @@ namespace ktest {
 
             for(auto it2 = test_infos.begin(); it2 != test_infos.end(); ++it2)
             {
-                m_cur_test_sucessful = true;
+                // Reset status
+                m_cur_test_successful = true;
 
                 auto test_name = it2->get_name();
 
                 *m_output_stream << "[ RUN      ] " << test_case_name << "." << test_name << "\n";
 
                 auto test = it2->m_test_factory->create_test();
-                auto status = test->run();
+
+                test->run();
+
                 delete test;
+
+                auto status = m_cur_test_successful;
 
                 if(status) {
                     m_cur_test_case_successful_count++;
@@ -261,27 +268,51 @@ namespace ktest {
 
     TestInfo *make_and_register_test_info(const char *test_case_name,
                                           const char *name,
-                                          CodeLocation code_location,
-                                          TestFactoryBase *test_factory)
+                                          const CodeLocation &code_location,
+                                          TestFactoryBase *test_factory) noexcept
     {
-        auto test_info = new TestInfo(test_case_name, name, code_location, test_factory);
+        auto test_info = new(std::nothrow) TestInfo(test_case_name, name, code_location, test_factory);
+        auto unit_test = get_unit_test();
 
-        get_unit_test()->add_test_info(test_info);
+        if(test_info == nullptr) {
+            unit_test->m_test_case_init_error = true;
+            return nullptr;
+        }
+
+        unit_test->add_test_info(test_info);
 
         return test_info;
     }
 
+    void process_expect_error(const CodeLocation &code_location,
+                             const ConstZString &expr,
+                             const ConstZString &expected,
+                             const ConstZString &actual)
+    {
+        auto &s = *get_unit_test()->m_output_stream;
+
+        s << code_location.file << "(" << code_location.line << "): error: " << expr << "\n";
+        s << "  Actual:" << actual << "\n";
+        s << "Expected:" << expected << "\n";
+
+        get_unit_test()->set_cur_test_failed();
+    }
 
     void assertion_impl(const CodeLocation &code_location,
                         const ConstZString &expr,
                         const ConstZString &expected,
                         const ConstZString &actual)
     {
-        auto &s = *get_unit_test()->m_output_stream;
-        s << code_location.file << "(" << code_location.line << "): error: " << expr << "\n";
-        s << "  Actual:" << actual << "\n";
-        s << "Expected:" << expected << "\n";
+        process_expect_error(code_location, expr, expected, actual);
         raise_exception(1);
+    }
+
+    void expect_impl(const CodeLocation &code_location,
+                        const ConstZString &expr,
+                        const ConstZString &expected,
+                        const ConstZString &actual)
+    {
+        process_expect_error(code_location, expr, expected, actual);
     }
 
     void fatal_error()
