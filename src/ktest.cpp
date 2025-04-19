@@ -4,7 +4,6 @@
 
 #include <ktest.hpp>
 #include <csetjmp>
-#include <cstdlib>
 
 namespace ktest {
 
@@ -65,29 +64,27 @@ namespace ktest {
 
     }
 
-    OutputStream::~OutputStream()
-    {
-
-    }
+    OutputStream::~OutputStream() = default;
 
     constexpr size_t kI32StrMaxLength = 12; // included null
+    constexpr size_t kU32StrMaxLength = 11; // included null
+    constexpr size_t kI64StrMaxLength = 22; // included null
+    constexpr size_t kU64StrMaxLength = 21; // included null
 
     static size_t i32_to_str(int32_t i, char s[kI32StrMaxLength])
     {
-        char buf[12];
-        int32_t abs_i = i;
-        if(i < 0) {
-            abs_i = -i;
-        }
+        char buf[kI32StrMaxLength];
+        uint32_t abs_i = i >= 0 ? i : -i;
+
         int l = 0;
         if(abs_i == 0) {
             l = 1;
             buf[0] = '0';
         } else {
             while (abs_i > 0) {
-                int32_t div_10 = abs_i / 10;
-                int32_t mod_10 = abs_i - div_10 * 10;
-                buf[l++] = (char)(mod_10 + '0');
+                uint32_t div_10 = abs_i / 10;
+                uint32_t mod_10 = abs_i - div_10 * 10;
+                buf[l++] = static_cast<char>(mod_10 + '0');
                 abs_i = div_10;
             }
         }
@@ -102,8 +99,92 @@ namespace ktest {
 
         *p = 0;
 
-        return (size_t)(p - s - 1);
+        return static_cast<size_t>(p - s - 1);
     }
+
+    static size_t u32_to_str(uint32_t i, char s[kU32StrMaxLength])
+    {
+        char buf[kU32StrMaxLength];
+        int l = 0;
+        if(i == 0) {
+            l = 1;
+            buf[0] = '0';
+        } else {
+            while (i > 0) {
+                uint32_t div_10 = i / 10;
+                uint32_t mod_10 = i - div_10 * 10;
+                buf[l++] = static_cast<char>(mod_10 + '0');
+                i = div_10;
+            }
+        }
+        char *p = s;
+        for(int c = l -1; c >= 0; c--)
+        {
+            *p++ = buf[c];
+        }
+
+        *p = 0;
+
+        return static_cast<size_t>(p - s - 1);
+    }
+
+    static size_t i64_to_str(int64_t i, char s[kI64StrMaxLength])
+    {
+        char buf[kI64StrMaxLength];
+        uint64_t abs_i = i >= 0 ? i : -i;
+
+        int l = 0;
+        if(abs_i == 0) {
+            l = 1;
+            buf[0] = '0';
+        } else {
+            while (abs_i > 0) {
+                uint64_t div_10 = abs_i / 10;
+                uint64_t mod_10 = abs_i - div_10 * 10;
+                buf[l++] = static_cast<char>(mod_10 + '0');
+                abs_i = div_10;
+            }
+        }
+        char *p = s;
+        if(i < 0) {
+            *p++ = '-';
+        }
+        for(int c = l -1; c >= 0; c--)
+        {
+            *p++ = buf[c];
+        }
+
+        *p = 0;
+
+        return static_cast<size_t>(p - s - 1);
+    }
+
+    static size_t u64_to_str(uint32_t i, char s[kU64StrMaxLength])
+    {
+        char buf[kU64StrMaxLength];
+        int l = 0;
+        if(i == 0) {
+            l = 1;
+            buf[0] = '0';
+        } else {
+            while (i > 0) {
+                uint64_t div_10 = i / 10;
+                uint64_t mod_10 = i - div_10 * 10;
+                buf[l++] = static_cast<char>(mod_10 + '0');
+                i = div_10;
+            }
+        }
+        char *p = s;
+        for(int c = l - 1; c >= 0; c--)
+        {
+            *p++ = buf[c];
+        }
+
+        *p = 0;
+
+        return static_cast<size_t>(p - s - 1);
+    }
+
 
     OutputStream &OutputStream::operator << (int32_t value)
     {
@@ -115,15 +196,19 @@ namespace ktest {
         return *this;
     }
 
-    Test::Test()
+    OutputStream &OutputStream::operator << (uint32_t value)
     {
+        char s[kU32StrMaxLength];
+        u32_to_str(value, s);
 
+        write(s);
+
+        return *this;
     }
 
-    Test::~Test()
-    {
+    Test::Test() = default;
 
-    }
+    Test::~Test() = default;
 
     void Test::set_up()
     {
@@ -196,14 +281,15 @@ namespace ktest {
         }
 
         auto test_cases_count = m_test_cases.get_count();
-        auto total_test_count = 0;
+        uint32_t total_test_count = 0;
 
         for(auto it = m_test_cases.begin(); it != m_test_cases.end(); ++it)
         {
             total_test_count += it->m_test_infos.get_count();
         }
 
-        *m_output_stream << "[==========] Running " << total_test_count << " test from " << test_cases_count << " test case.\n";
+        *m_output_stream << "[==========] Running " << total_test_count << " test from "
+                            << test_cases_count << " test case.\n";
 
         for(auto it = m_test_cases.begin(); it != m_test_cases.end(); ++it)
         {
@@ -320,5 +406,37 @@ namespace ktest {
         for(;;) {
 
         }
+    }
+
+    void to_string(int32_t from, char *to, size_t to_size)
+    {
+        if (to_size < kI32StrMaxLength)
+            return;
+
+        i32_to_str(from, to);
+    }
+
+    void to_string(uint32_t from, char *to, size_t to_size)
+    {
+        if (to_size < kU32StrMaxLength)
+            return;
+
+        u32_to_str(from, to);
+    }
+
+    void to_string(int64_t from, char *to, size_t to_size)
+    {
+        if (to_size < kI64StrMaxLength)
+            return;
+
+        i64_to_str(from, to);
+    }
+
+    void to_string(uint64_t from, char *to, size_t to_size)
+    {
+        if (to_size < kU64StrMaxLength)
+            return;
+
+        u64_to_str(from, to);
     }
 }

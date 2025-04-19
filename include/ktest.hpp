@@ -48,7 +48,7 @@
     ::ktest::expect_compare(::ktest::CodeLocation(__FILE__, __LINE__), #expected " >= " #actual, expected, actual), 0)
 #define EXPECT_STREQ(expected, actual)  (strcmp((expected), (actual) == 0 ? (void)0 : \
     ::ktest::expect_compare_string(::ktest::CodeLocation(__FILE__, __LINE__), #expected " == " #actual, expected, actual), 0)
-#define EXCPECT_STRNE(expected, actual)  (strcmp((expected), (actual) != 0 ? (void)0 : \
+#define EXPECT_STRNE(expected, actual)  (strcmp((expected), (actual) != 0 ? (void)0 : \
     ::ktest::expect_compare_string(::ktest::CodeLocation(__FILE__, __LINE__), #expected " != " #actual, expected, actual), 0)
 
 #define ASSERT_TRUE(actual)  ((actual) ? (void)0 : \
@@ -83,8 +83,8 @@ namespace ktest {
     class UnitTest;
 
     struct CodeLocation {
-        CodeLocation(const char *a_file, uint32_t a_line)
-        : file(a_file), line(a_line)
+        CodeLocation(const char *file_, uint32_t line_)
+        : file(file_), line(line_)
         {
         }
 
@@ -124,7 +124,7 @@ namespace ktest {
 
         ZString(const ZString &zs) = default;
 
-        char operator [](size_t index)
+        char operator [](size_t index) const
         {
             return m_value[index];
         }
@@ -159,7 +159,7 @@ namespace ktest {
 
         }
 
-        char operator [](size_t index)
+        char operator [](size_t index) const
         {
             return m_value[index];
         }
@@ -170,37 +170,37 @@ namespace ktest {
             return *this;
         }
 
-        bool operator == (const ConstZString &z)
+        bool operator == (const ConstZString &z) const
         {
             return ::strcmp(m_value, z.m_value) == 0;
         }
 
-        bool operator == (const char *s)
+        bool operator == (const char *s) const
         {
             return ::strcmp(m_value, s) == 0;
         }
 
-        bool operator != (const ConstZString &z)
+        bool operator != (const ConstZString &z) const
         {
             return ::strcmp(m_value, z.m_value) != 0;
         }
 
-        bool operator < (const ConstZString &z)
+        bool operator < (const ConstZString &z) const
         {
             return ::strcmp(m_value, z.m_value) < 0;
         }
 
-        bool operator <= (const ConstZString &z)
+        bool operator <= (const ConstZString &z) const
         {
             return strcmp(m_value, z.m_value) <= 0;
         }
 
-        bool operator > (const ConstZString &z)
+        bool operator > (const ConstZString &z) const
         {
             return strcmp(m_value, z.m_value) > 0;
         }
 
-        bool operator >= (const ConstZString &z)
+        bool operator >= (const ConstZString &z) const
         {
             return strcmp(m_value, z.m_value) >= 0;
         }
@@ -233,7 +233,7 @@ namespace ktest {
         }
     public:
         T * operator -> () {
-            return (T*)m_item;
+            return static_cast<T *>(m_item);
         }
         ListIterator operator ++ () {
             m_item = m_item->m_next;
@@ -348,6 +348,7 @@ namespace ktest {
         }
 
         OutputStream &operator << (int32_t value);
+        OutputStream &operator << (uint32_t value);
 
         bool is_error() const {
             return m_is_error;
@@ -447,7 +448,7 @@ namespace ktest {
         TestCase *m_cur_test_case = nullptr;
     };
 
-    static inline UnitTest *get_unit_test()
+    static UnitTest *get_unit_test()
     {
         return UnitTest::get_instance();
     }
@@ -499,54 +500,41 @@ namespace ktest {
         expect_impl(code_location, expr, "false", actual ? "true" : "false");
     }
 
+
+    void to_string(int32_t from, char *to, size_t to_size);
+    void to_string(uint32_t from, char *to, size_t to_size);
+
     static void to_string(int8_t from, char *to, size_t to_size)
     {
-        ::sprintf(to, "%d", from);
+        to_string(static_cast<int32_t>(from), to, to_size);
     }
 
     static void to_string(uint8_t from, char *to, size_t to_size)
     {
-        ::sprintf(to, "%d", from);
+        to_string(static_cast<uint32_t>(from), to, to_size);
     }
 
     static void to_string(int16_t from, char *to, size_t to_size)
     {
-        ::sprintf(to, "%d", from);
+        to_string(static_cast<int32_t>(from), to, to_size);
     }
 
     static void to_string(uint16_t from, char *to, size_t to_size)
     {
-        ::sprintf(to, "%d", from);
+        to_string(static_cast<uint32_t>(from), to, to_size);
     }
 
-    static void to_string(int32_t from, char *to, size_t to_size)
-    {
-        ::sprintf(to, "%d", from);
-    }
-
-    static void to_string(uint32_t from, char *to, size_t to_size)
-    {
-        ::sprintf(to, "%d" PRIu32, from);
-    }
-
-    static void to_string(int64_t from, char *to, size_t to_size)
-    {
-        ::sprintf(to, "%" PRIi64, from);
-    }
-
-    static void to_string(uint64_t from, char *to, size_t to_size)
-    {
-        ::sprintf(to, "%" PRIu64, from);
-    }
+    void to_string(int64_t from, char *to, size_t to_size);
+    void to_string(uint64_t from, char *to, size_t to_size);
 
     static void to_string(void *from, char *to, size_t to_size)
     {
         auto from_value = reinterpret_cast<uintptr_t>(from);
 
         if(sizeof(uintptr_t) > 4) {
-            ::sprintf(to, "0x%016" PRIx64, static_cast<uint64_t>(from_value));
+            to_string(static_cast<uint64_t>(from_value), to, to_size);
         } else {
-            ::sprintf(to, "0x%08lx", from_value);
+            to_string(static_cast<uint32_t>(from_value), to, to_size);
         }
     }
 
